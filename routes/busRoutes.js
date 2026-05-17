@@ -8,15 +8,18 @@ import {
   createBus,
   updateBus,
   deleteBus,
+  getMyBus,
 } from '../controllers/busController.js';
 
 import { protect, authorize } from '../middleware/auth.js';
 
 const router = express.Router();
 
+router.get('/my-bus', protect, authorize('conductor'), getMyBus);
+router.get('/live-delay', getLiveDelayStatus);
 // Public routes
 router.get('/', getBuses);
-router.get('/live-delay', getLiveDelayStatus);
+
 router.get('/:id', getBusById);
 
 // Passenger / Conductor / Admin
@@ -26,6 +29,8 @@ router.put(
   authorize('passenger', 'conductor', 'admin'),
   updateCrowdLevel
 );
+
+
 
 // Admin only
 router.post('/', protect, authorize('admin'), createBus);

@@ -5,6 +5,7 @@ import {
   getActiveDelays,
   resolveDelay,
   getAllDelays,
+  getMyDelays,
 } from '../controllers/delayController.js';
 
 import { protect, authorize } from '../middleware/auth.js';
@@ -26,6 +27,13 @@ router.put(
   protect,
   authorize('conductor', 'admin'),
   resolveDelay
+);
+
+router.get(
+  "/my",
+  protect,
+  authorize("conductor"),
+  getMyDelays
 );
 
 export default router;

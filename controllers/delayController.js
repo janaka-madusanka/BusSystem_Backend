@@ -118,3 +118,21 @@ export const getAllDelays = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
+export const getMyDelays = async (req, res) => {
+  try {
+    const delays = await Delay.find({
+      reportedBy: req.user._id,
+    }).sort({ createdAt: -1 });
+
+    res.json({
+      success: true,
+      data: delays,
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: err.message,
+    });
+  }
+};

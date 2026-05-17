@@ -223,3 +223,34 @@ export const deleteBus = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
+// @desc    Get logged-in conductor's bus
+// @route   GET /api/buses/my-bus
+// @access  Private (Conductor)
+export const getMyBus = async (req, res) => {
+  try {
+    const bus = await Bus.findOne({
+      conductor: req.user._id,
+      isActive: true,
+    })
+      .populate('route', 'name origin destination')
+      .populate('conductor', 'firstName lastName');
+
+    if (!bus) {
+      return res.status(404).json({
+        success: false,
+        message: 'No bus assigned to this conductor',
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: bus,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
