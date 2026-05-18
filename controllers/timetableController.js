@@ -35,41 +35,7 @@ export const getTimetable = async (req, res) => {
   }
 };
 
-// @desc    Get conductor bus timetable
-// @route   GET /api/timetable/my-bus
-// @access  Private
-export const getMyBusTimetable = async (req, res) => {
-  try {
-    if (!req.user.assignedBus) {
-      return res.status(400).json({
-        success: false,
-        message: 'No bus assigned to this conductor',
-      });
-    }
 
-    // FIX: remove broken date logic
-    const today = new Date().toLocaleDateString('en-GB');
-
-    const timetable = await Timetable.findOne({
-      bus: req.user.assignedBus,
-      date: today,
-    }).populate('bus', 'busNumber busType currentDelay currentStatus');
-
-    if (!timetable) {
-      return res.status(404).json({
-        success: false,
-        message: 'No timetable found for today',
-      });
-    }
-
-    res.status(200).json({
-      success: true,
-      data: timetable,
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-};
 
 // @desc    Create or update timetable
 // @route   POST /api/timetable
@@ -195,6 +161,49 @@ export const getAllTimetables = async (req, res) => {
       success: true,
       count: timetables.length,
       data: timetables,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+
+export const getMyBusTimetable = async (req, res) => {
+  try {
+    if (!req.user.assignedBus) {
+      return res.status(400).json({
+        success: false,
+        message: 'No bus assigned to this conductor',
+      });
+    }
+
+    const today = new Date().toLocaleDateString('en-GB');
+
+    // 1️⃣ Try today first
+    let timetable = await Timetable.findOne({
+      bus: req.user.assignedBus,
+      date: today,
+    }).populate('bus', 'busNumber busType currentDelay currentStatus');
+
+    // 2️⃣ If no today timetable → get latest
+    if (!timetable) {
+      timetable = await Timetable.findOne({
+        bus: req.user.assignedBus,
+      })
+        .sort({ createdAt: -1 })
+        .populate('bus', 'busNumber busType currentDelay currentStatus');
+    }
+
+    if (!timetable) {
+      return res.status(404).json({
+        success: false,
+        message: 'No timetable found',
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: timetable,
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });

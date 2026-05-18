@@ -12,19 +12,41 @@ import { protect, authorize } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// Public: search timetable
+/* =========================
+   PUBLIC ROUTES
+========================= */
 router.get('/', getTimetable);
 
-// Admin: all timetables
-router.get('/all', protect, authorize('admin'), getAllTimetables);
+/* =========================
+   CONDUCTOR ROUTES
+========================= */
+router.get(
+  '/my-bus',
+  protect,
+  authorize('conductor'),
+  getMyBusTimetable
+);
 
-// Conductor: their bus timetable
-router.get('/my-bus', protect, authorize('conductor'), getMyBusTimetable);
+router.post(
+  '/',
+  protect,
+  authorize('conductor'),
+  upsertTimetable
+);
 
-// Conductor: create/update timetable
-router.post('/', protect, authorize('conductor'), upsertTimetable);
+/* =========================
+   ADMIN ROUTES
+========================= */
+router.get(
+  '/all',
+  protect,
+  authorize('admin'),
+  getAllTimetables
+);
 
-// Conductor/Admin: update trip status
+/* =========================
+   SHARED (CONDUCTOR + ADMIN)
+========================= */
 router.put(
   '/:id/trip/:tripNumber',
   protect,
