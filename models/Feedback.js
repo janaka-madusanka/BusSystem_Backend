@@ -11,7 +11,7 @@ const feedbackSchema = new mongoose.Schema(
     submittedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      default: null, // Allow anonymous feedback
+      default: null,
     },
 
     problemType: {

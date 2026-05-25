@@ -4,6 +4,10 @@ import User from '../models/User.js';
 
 // Generate JWT token
 const generateToken = (id) => {
+  if (!process.env.JWT_SECRET) {
+    throw new Error('JWT_SECRET is missing in backend .env');
+  }
+
   return jwt.sign({ id }, process.env.JWT_SECRET, {
     expiresIn: process.env.JWT_EXPIRE || '7d',
   });
@@ -72,7 +76,9 @@ export const login = async (req, res) => {
   const { email, password } = req.body;
 
   try {
-    const user = await User.findOne({ email }).select('+password');
+    const user = await User.findOne({
+      email: email.toLowerCase().trim(),
+    }).select('+password');
 
     if (!user) {
       return res
@@ -84,6 +90,13 @@ export const login = async (req, res) => {
       return res
         .status(401)
         .json({ success: false, message: 'Account is deactivated' });
+    }
+
+    if (!user.password) {
+      return res.status(500).json({
+        success: false,
+        message: 'This user has no password saved. Reset or recreate the user.',
+      });
     }
 
     const isMatch = await user.matchPassword(password);
@@ -110,6 +123,7 @@ export const login = async (req, res) => {
 },
     });
   } catch (error) {
+    console.error('Login error:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 };

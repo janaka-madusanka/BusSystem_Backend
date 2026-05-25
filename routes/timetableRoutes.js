@@ -4,6 +4,7 @@ import {
   getTimetable,
   getMyBusTimetable,
   upsertTimetable,
+  upsertBusTimetable,
   updateTripStatus,
   getAllTimetables,
 } from '../controllers/timetableController.js';
@@ -23,6 +24,14 @@ router.get('/my-bus', protect, authorize('conductor'), getMyBusTimetable);
 
 // Conductor: create/update timetable
 router.post('/', protect, authorize('conductor'), upsertTimetable);
+
+// Conductor/Admin: create/update timetable for selected bus
+router.post(
+  '/bus/:busId',
+  protect,
+  authorize('conductor', 'admin'),
+  upsertBusTimetable
+);
 
 // Conductor/Admin: update trip status
 router.put(

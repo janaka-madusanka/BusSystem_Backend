@@ -8,12 +8,12 @@ const tripSchema = new mongoose.Schema({
 
   departureTime: {
     type: String,
-    required: true, // e.g. "04:15 AM"
+    required: true,
   },
 
   arrivalTime: {
     type: String,
-    required: true, // e.g. "06:20 AM"
+    required: true,
   },
 
   status: {
