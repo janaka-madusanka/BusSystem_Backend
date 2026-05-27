@@ -45,7 +45,6 @@ router.get(
   getAllTimetables
 );
 
-<<<<<<< HEAD
 // Conductor/Admin: create/update timetable for selected bus
 router.post(
   '/bus/:busId',
@@ -55,11 +54,6 @@ router.post(
 );
 
 // Conductor/Admin: update trip status
-=======
-/* =========================
-   SHARED (CONDUCTOR + ADMIN)
-========================= */
->>>>>>> 29750a206965801820dd079fdb3ddeb33e3b09f5
 router.put(
   '/:id/trip/:tripNumber',
   protect,
