@@ -1,5 +1,9 @@
 import Bus from '../models/Bus.js';
 import Timetable from '../models/Timetable.js';
+import {
+  getLiveTimetableForBus,
+  getTodayDate,
+} from './timetableController.js';
 
 // @desc    Get all buses
 // @route   GET /api/buses
@@ -55,14 +59,31 @@ export const getBusById = async (req, res) => {
 // @access  Public
 export const getLiveDelayStatus = async (req, res) => {
   try {
-    const buses = await Bus.find({
-      isActive: true,
+    const timetables = await Timetable.find({
       currentStatus: { $in: ['Running', 'Delayed'] },
     })
-      .populate('route', 'origin destination')
-      .select(
-        'busNumber busType currentStatus currentDelay crowdLevel route lastUpdated'
-      );
+      .populate({
+        path: 'bus',
+        match: { isActive: true },
+        select: 'busNumber busType route',
+        populate: { path: 'route', select: 'origin destination' },
+      })
+      .sort({ lastUpdated: -1 });
+
+    const buses = timetables
+      .filter((timetable) => timetable.bus)
+      .map((timetable) => ({
+        _id: timetable.bus._id,
+        busNumber: timetable.bus.busNumber,
+        busType: timetable.bus.busType,
+        route: timetable.bus.route,
+        currentStatus: timetable.currentStatus,
+        currentDelay: timetable.currentDelay,
+        crowdLevel: timetable.crowdLevel,
+        lastUpdated: timetable.lastUpdated,
+        timetable: timetable._id,
+        date: timetable.date,
+      }));
 
     res.status(200).json({
       success: true,
@@ -97,12 +118,24 @@ export const updateCrowdLevel = async (req, res) => {
         .json({ success: false, message: 'Bus not found' });
     }
 
-    bus.crowdReports.push({
+    let timetable = await getLiveTimetableForBus(bus._id);
+
+    if (!timetable) {
+      timetable = await Timetable.create({
+        bus: bus._id,
+        date: getTodayDate(),
+        trips: [],
+        isLive: true,
+        submittedBy: req.user._id,
+      });
+    }
+
+    timetable.crowdReports.push({
       reportedBy: req.user._id,
       level,
     });
 
-    const recent = bus.crowdReports.slice(-20);
+    const recent = timetable.crowdReports.slice(-20);
 
     const counts = {
       Low: 0,
@@ -115,18 +148,19 @@ export const updateCrowdLevel = async (req, res) => {
       counts[r.level]++;
     });
 
-    bus.crowdLevel = Object.keys(counts).reduce((a, b) =>
+    timetable.crowdLevel = Object.keys(counts).reduce((a, b) =>
       counts[a] >= counts[b] ? a : b
     );
 
-    bus.lastUpdated = Date.now();
+    timetable.lastUpdated = Date.now();
 
-    await bus.save();
+    await timetable.save();
 
     res.status(200).json({
       success: true,
       message: 'Crowd level updated',
-      crowdLevel: bus.crowdLevel,
+      crowdLevel: timetable.crowdLevel,
+      timetable: timetable._id,
       totalReports: recent.length,
     });
   } catch (error) {

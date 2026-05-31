@@ -26,6 +26,20 @@ const parseTimeToMinutes = (time) => {
 const textMatches = (value, search) =>
   String(value || '').toLowerCase().includes(search);
 
+export const getTodayDate = () => new Date().toLocaleDateString('en-GB');
+
+export const getLiveTimetableForBus = async (busId) => {
+  const today = getTodayDate();
+
+  let timetable = await Timetable.findOne({ bus: busId, date: today });
+
+  if (!timetable) {
+    timetable = await Timetable.findOne({ bus: busId }).sort({ updatedAt: -1 });
+  }
+
+  return timetable;
+};
+
 const getConductorBus = async (user) => {
   if (user.assignedBus) {
     const assignedBus = await Bus.findOne({
@@ -68,7 +82,7 @@ export const getTimetable = async (req, res) => {
           busType && busType !== 'All'
             ? { busType, isActive: true }
             : { isActive: true },
-        select: 'busNumber busType currentStatus currentDelay crowdLevel',
+        select: 'busNumber busType',
         populate: { path: 'route', select: 'name origin destination stops' },
       })
       .populate('submittedBy', 'fullName');
@@ -147,7 +161,7 @@ export const getMyBusTimetable = async (req, res) => {
     })
       .populate({
         path: 'bus',
-        select: 'busNumber busType currentDelay currentStatus route',
+        select: 'busNumber busType route',
         populate: { path: 'route', select: 'name origin destination stops' },
       })
       .populate('submittedBy', 'firstName lastName email');
@@ -201,20 +215,16 @@ const saveTimetableForBus = async ({ busId, date, trips, userId }) => {
       trips,
       isLive: true,
       submittedBy: userId,
+      lastUpdated: Date.now(),
     },
     { upsert: true, new: true, runValidators: true }
   )
     .populate({
       path: 'bus',
-      select: 'busNumber busType currentDelay currentStatus route',
+      select: 'busNumber busType route',
       populate: { path: 'route', select: 'name origin destination stops' },
     })
     .populate('submittedBy', 'firstName lastName email');
-
-  await Bus.findByIdAndUpdate(bus._id, {
-    currentStatus: 'Scheduled',
-    lastUpdated: Date.now(),
-  });
 
   return timetable;
 };
@@ -348,9 +358,9 @@ export const updateTripStatus = async (req, res) => {
       (t) => t.status === 'In Progress'
     );
 
-    await Bus.findByIdAndUpdate(timetable.bus, {
-      currentStatus: hasInProgress ? 'Running' : 'Scheduled',
-    });
+    timetable.currentStatus = hasInProgress ? 'Running' : 'Scheduled';
+    timetable.lastUpdated = Date.now();
+    await timetable.save();
 
     res.status(200).json({
       success: true,

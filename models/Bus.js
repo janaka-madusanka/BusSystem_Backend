@@ -39,35 +39,6 @@ const busSchema = new mongoose.Schema(
       default: 'Scheduled',
     },
 
-    currentDelay: {
-      type: Number,
-      default: 0,
-      min: 0,
-    },
-
-    crowdLevel: {
-      type: String,
-      enum: ['Low', 'Medium', 'High', 'Fully Crowded'],
-      default: 'Low',
-    },
-
-    crowdReports: [
-      {
-        reportedBy: {
-          type: mongoose.Schema.Types.ObjectId,
-          ref: 'User',
-        },
-        level: {
-          type: String,
-          enum: ['Low', 'Medium', 'High', 'Fully Crowded'],
-        },
-        reportedAt: {
-          type: Date,
-          default: Date.now,
-        },
-      },
-    ],
-
     lastUpdated: {
       type: Date,
       default: Date.now,

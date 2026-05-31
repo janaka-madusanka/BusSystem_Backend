@@ -183,15 +183,31 @@ export const getPassengerDashboard = async (req, res) => {
   try {
     const user = await User.findById(req.user._id).populate(
       'subscribedAlerts',
-      'busNumber currentDelay currentStatus'
+      'busNumber busType'
     );
 
-    const recentDelayed = await Bus.find({
+    const recentDelayedTimetables = await Timetable.find({
       currentStatus: 'Delayed',
-      isActive: true,
     })
-      .select('busNumber busType currentDelay crowdLevel')
+      .populate({
+        path: 'bus',
+        match: { isActive: true },
+        select: 'busNumber busType',
+      })
+      .sort({ lastUpdated: -1 })
       .limit(3);
+
+    const recentDelayed = recentDelayedTimetables
+      .filter((timetable) => timetable.bus)
+      .map((timetable) => ({
+        _id: timetable.bus._id,
+        busNumber: timetable.bus.busNumber,
+        busType: timetable.bus.busType,
+        currentDelay: timetable.currentDelay,
+        currentStatus: timetable.currentStatus,
+        crowdLevel: timetable.crowdLevel,
+        timetable: timetable._id,
+      }));
 
     res.status(200).json({
       success: true,

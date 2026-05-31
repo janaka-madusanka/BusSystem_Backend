@@ -1,5 +1,9 @@
 import Delay from '../models/Delay.js';
-import Bus from '../models/Bus.js';
+import Timetable from '../models/Timetable.js';
+import {
+  getLiveTimetableForBus,
+  getTodayDate,
+} from './timetableController.js';
 
 // @desc    Report a delay (conductor)
 // @route   POST /api/delays
@@ -30,11 +34,22 @@ export const reportDelay = async (req, res) => {
       notes,
     });
 
-    await Bus.findByIdAndUpdate(req.user.assignedBus, {
-      currentStatus: 'Delayed',
-      currentDelay: estimatedDelayMinutes || 0,
-      lastUpdated: Date.now(),
-    });
+    let timetable = await getLiveTimetableForBus(req.user.assignedBus);
+
+    if (!timetable) {
+      timetable = await Timetable.create({
+        bus: req.user.assignedBus,
+        date: getTodayDate(),
+        trips: [],
+        isLive: true,
+        submittedBy: req.user._id,
+      });
+    }
+
+    timetable.currentStatus = 'Delayed';
+    timetable.currentDelay = estimatedDelayMinutes || 0;
+    timetable.lastUpdated = Date.now();
+    await timetable.save();
 
     res.status(201).json({
       success: true,
@@ -52,14 +67,40 @@ export const reportDelay = async (req, res) => {
 export const getActiveDelays = async (req, res) => {
   try {
     const delays = await Delay.find({ isResolved: false })
-      .populate('bus', 'busNumber busType crowdLevel currentStatus')
+      .populate('bus', 'busNumber busType')
       .populate('reportedBy', 'fullName')
       .sort({ createdAt: -1 });
 
+    const busIds = delays.map((delay) => delay.bus?._id).filter(Boolean);
+    const timetables = await Timetable.find({ bus: { $in: busIds } }).sort({
+      lastUpdated: -1,
+    });
+    const liveByBus = new Map();
+
+    timetables.forEach((timetable) => {
+      const key = timetable.bus.toString();
+      if (!liveByBus.has(key)) liveByBus.set(key, timetable);
+    });
+
+    const data = delays.map((delay) => {
+      const item = delay.toObject();
+      const live = item.bus?._id ? liveByBus.get(item.bus._id.toString()) : null;
+
+      if (live) {
+        item.timetable = live._id;
+        item.currentStatus = live.currentStatus;
+        item.currentDelay = live.currentDelay;
+        item.crowdLevel = live.crowdLevel;
+        item.date = live.date;
+      }
+
+      return item;
+    });
+
     res.status(200).json({
       success: true,
-      count: delays.length,
-      data: delays,
+      count: data.length,
+      data,
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -84,11 +125,14 @@ export const resolveDelay = async (req, res) => {
     delay.resolvedAt = Date.now();
     await delay.save();
 
-    await Bus.findByIdAndUpdate(delay.bus, {
-      currentStatus: 'Running',
-      currentDelay: 0,
-      lastUpdated: Date.now(),
-    });
+    const timetable = await getLiveTimetableForBus(delay.bus);
+
+    if (timetable) {
+      timetable.currentStatus = 'Running';
+      timetable.currentDelay = 0;
+      timetable.lastUpdated = Date.now();
+      await timetable.save();
+    }
 
     res.status(200).json({
       success: true,
