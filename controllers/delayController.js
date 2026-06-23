@@ -11,6 +11,11 @@ import {
 export const reportDelay = async (req, res) => {
   try {
     const { reason, estimatedDelayMinutes, notes } = req.body;
+    const delayMinutes = Math.max(Number(estimatedDelayMinutes) || 0, 0);
+    const allowedReasons = ['Traffic', 'Weather', 'Breakdown', 'Other'];
+    const normalizedReason = allowedReasons.includes(reason) ? reason : 'Other';
+    const normalizedNotes =
+      notes || (normalizedReason === 'Other' && reason !== 'Other' ? reason : undefined);
 
     if (!req.user.assignedBus) {
       return res.status(400).json({
@@ -26,12 +31,9 @@ export const reportDelay = async (req, res) => {
       });
     }
 
-    const delay = await Delay.create({
+    let delay = await Delay.findOne({
       bus: req.user.assignedBus,
-      reportedBy: req.user._id,
-      reason,
-      estimatedDelayMinutes: estimatedDelayMinutes || 0,
-      notes,
+      isResolved: false,
     });
 
     let timetable = await getLiveTimetableForBus(req.user.assignedBus);
@@ -46,14 +48,35 @@ export const reportDelay = async (req, res) => {
       });
     }
 
-    timetable.currentStatus = 'Delayed';
-    timetable.currentDelay = estimatedDelayMinutes || 0;
+    if (delayMinutes > 0) {
+      if (!delay) {
+        delay = new Delay({
+          bus: req.user.assignedBus,
+          reportedBy: req.user._id,
+        });
+      }
+
+      delay.reportedBy = req.user._id;
+      delay.reason = normalizedReason;
+      delay.estimatedDelayMinutes = delayMinutes;
+      delay.notes = normalizedNotes;
+      delay.isResolved = false;
+      delay.resolvedAt = null;
+      await delay.save();
+    } else if (delay) {
+      delay.isResolved = true;
+      delay.resolvedAt = Date.now();
+      await delay.save();
+    }
+
+    timetable.currentStatus = delayMinutes > 0 ? 'Delayed' : 'Running';
+    timetable.currentDelay = delayMinutes;
     timetable.lastUpdated = Date.now();
     await timetable.save();
 
-    res.status(201).json({
+    res.status(delay ? 200 : 201).json({
       success: true,
-      message: 'Delay reported',
+      message: delayMinutes > 0 ? 'Delay updated' : 'Delay cleared',
       data: delay,
     });
   } catch (error) {
